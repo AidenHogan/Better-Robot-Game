@@ -13,7 +13,8 @@ TILE_COLORS = {
     "grass": arcade.color.LIGHT_GREEN,
     "iron_ore": arcade.color.BATTLESHIP_GREY,
     "water": arcade.color.SEA_BLUE,
-    "stone": arcade.color.ASH_GREY
+    "stone": arcade.color.ASH_GREY,
+    "sky": [135, 206, 250, 125] #Sky blue, opacity 125 = 50%, 0 = invisible, 250 = 100%
     }
 TILE_SIZE = 40
 MAP_SIZE = 20
@@ -46,7 +47,10 @@ class GameView(arcade.Window):
         #Makes map and controls tile spawn rate based on elevation
         for z_index in range(Z_LEVELS):
             new_layer = []
-            if z_index == 2:
+            if z_index < 2:
+                tile_types = ["sky"]
+                tile_weights = [1]
+            elif z_index == 2:
                 tile_types = ["grass", "iron_ore", "water"]
                 tile_weights = [0.8, .05, .15]
             else:
@@ -71,29 +75,39 @@ class GameView(arcade.Window):
         # It ensures that you have a clean slate for drawing each frame of the game.
         self.clear()
 
-        #Layer we're currently looking at
-        current_layer = self.tile_map[self.current_z]
+        #all maps are the same size
+        tile_map_size = self.tile_map[0]
 
+        if self.current_z >= 2:
+            layers_to_draw = [self.current_z]
+            current_layer = self.tile_map[self.current_z]
+        else:
+            layers_to_draw = []
+            #Start at surface, stop just past the current z, step back by 1
+            for depth in range(2, self.current_z -1, -1):
+                layers_to_draw.append(depth)
 
         #Offset the screen to center the tile map
-        total_rows = len(current_layer)
-        total_cols = len(current_layer[0])
+        total_rows = len(tile_map_size)
+        total_cols = len(tile_map_size[0])
         map_pixel_width = total_cols * TILE_SIZE
         map_pixel_height = total_rows * TILE_SIZE
         x_offset = (WINDOW_WIDTH - map_pixel_width) / 2
         y_offset = (WINDOW_HEIGHT - map_pixel_height) / 2
         #Draw the tile map we created in setup
-        for row_index in range(len(current_layer)):
-            for col_index in range(len(current_layer[row_index])):
-                tile_name = current_layer[row_index][col_index] #gets the string at position in the map
-                tile_color = TILE_COLORS[tile_name] #assigns it a color based on name (tile_type)
-                #The center of each tile, increase by tile size with increasing index
-                #   and start at half the tile size
-                center_x = (col_index * TILE_SIZE) + (TILE_SIZE/2) + x_offset
-                center_y = (row_index * TILE_SIZE) + (TILE_SIZE/2) + y_offset
-                #Make and draw the rectanges 
-                tile_rect = arcade.XYWH(center_x, center_y, TILE_SIZE, TILE_SIZE)
-                arcade.draw_rect_filled(tile_rect, tile_color)
+        for depth in layers_to_draw:
+            current_layer = self.tile_map[depth]
+            for row_index in range(len(tile_map_size)): #use any tile_map, they're all the same size
+                for col_index in range(len(tile_map_size[row_index])):
+                    tile_name = current_layer[row_index][col_index] #gets the string at position in the map
+                    tile_color = TILE_COLORS[tile_name] #assigns it a color based on name (tile_type)
+                    #The center of each tile, increase by tile size with increasing index
+                    #   and start at half the tile size
+                    center_x = (col_index * TILE_SIZE) + (TILE_SIZE/2) + x_offset
+                    center_y = (row_index * TILE_SIZE) + (TILE_SIZE/2) + y_offset
+                    #Make and draw the rectanges 
+                    tile_rect = arcade.XYWH(center_x, center_y, TILE_SIZE, TILE_SIZE)
+                    arcade.draw_rect_filled(tile_rect, tile_color)
 
     #Allows traversal of z layers
     def on_key_press(self, key, modifiers):
