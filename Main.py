@@ -1,121 +1,105 @@
 #Setup the game here
-
-import arcade #Game library
+import arcade #game library.  #type: ignore (removes false 'not-used' flag)
 import random
+import constants #All of our game settings
 
-#Setup window
-WINDOW_WIDTH = 1280
-WINDOW_HEIGHT = 720
-WINDOW_TITLE = "Robotica"
-
-# Define colors for the tile map
-TILE_COLORS = {
-    "grass": arcade.color.LIGHT_GREEN,
-    "iron_ore": arcade.color.BATTLESHIP_GREY,
-    "water": arcade.color.SEA_BLUE,
-    "stone": arcade.color.ASH_GREY,
-    "sky": [135, 206, 250, 125] #Sky blue, opacity 125 = 50%, 0 = invisible, 250 = 100%
-    }
-TILE_SIZE = 40
-MAP_SIZE = 20
-
-
-#Ripped from arcade example.  Idk what it does beyond making the window
-#https://api.arcade.academy/en/stable/tutorials/platform_tutorial/step_01.html
-#I added a tile map
+#Responsible for creating the game window, creating and drawing the map.  
 class GameView(arcade.Window):
-    """
-    Main application class.
-    """
-
+    #Setup
     def __init__(self):
 
         # Call the parent class to set up the window
-        super().__init__(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE)
-
+        super().__init__(constants.WINDOW_WIDTH, constants.WINDOW_HEIGHT, constants.WINDOW_TITLE)
         self.background_color = arcade.csscolor.BLACK
-        #Track our current z level.  2 = surface
-        self.current_z = 2
+        
+        # Track our current z level.
+        self.current_z = constants.SURFACE_LEVEL
 
+    """High level summary of what happens on game start"""
     def setup(self):
-        """Set up the game here. Call this function to restart the game."""
-        # Create empty variable to hold our tile map
-        self.tile_map = []
-        #Defines layers of the world
-        Z_LEVELS = 5 #0 is 2 blocks into the sky.  2 is surface.  5 is max underground.
+        self.tile_map = self.generate_world_data()
+        self.calculate_screen_offsets()
 
-        #Makes map and controls tile spawn rate based on elevation
-        for z_index in range(Z_LEVELS):
+    # Map data creation
+    def generate_world_data(self):
+         # Holds our tile map
+        new_map = []
+
+        # Makes map and controls tile spawn rate based on elevation
+        for z_index in range(constants.Z_LEVELS):
             new_layer = []
-            if z_index < 2:
+            if z_index < constants.SURFACE_LEVEL: #Sky
                 tile_types = ["sky"]
                 tile_weights = [1]
-            elif z_index == 2:
+            elif z_index == constants.SURFACE_LEVEL: #Surface
                 tile_types = ["grass", "iron_ore", "water"]
                 tile_weights = [0.8, .05, .15]
-            else:
+            else: #Underground
                 tile_types = ["stone", "iron_ore", "water"]
-                tile_weights = [.7, .15, .15]
+                tile_weights = [.8, .15, .05]
             #Creates a map of strings
-            for row_index in range(MAP_SIZE):
+            for row_index in range(constants.MAP_SIZE):
                 new_row = []
-                for col_index in range(MAP_SIZE):
+                for col_index in range(constants.MAP_SIZE):
                     #[0] pulls the string from the list random choices generates
                     chosen_tile = random.choices(tile_types, weights = tile_weights)[0]
-                    new_row.append(chosen_tile) 
+                    new_row.append(chosen_tile) #Add each tile to the row
 
-                new_layer.append(new_row) #adds the rows to our tile_map
+                new_layer.append(new_row) #adds the rows to each layer
             
-            self.tile_map.append(new_layer) 
+            new_map.append(new_layer) #Add each layer to our full tile_map
+        return new_map
+    
+    # Offset the screen to center the in game map
+    def calculate_screen_offsets(self):
+        total_rows = len(self.tile_map[0])
+        total_cols = len(self.tile_map[0])
+        map_pixel_width = total_cols * constants.TILE_SIZE
+        map_pixel_height = total_rows * constants.TILE_SIZE
+        self.x_offset = (constants.WINDOW_WIDTH - map_pixel_width) / 2
+        self.y_offset = (constants.WINDOW_HEIGHT - map_pixel_height) / 2
 
-
+    """High level summary of what is drawn to the screen each frame"""
     def on_draw(self):
-        """Render the screen."""
-        # The clear method should always be called at the start of on_draw.
-        # It ensures that you have a clean slate for drawing each frame of the game.
         self.clear()
+        self.draw_visible_layers()
 
+    # Handles depth and painting the map to screen
+    def draw_visible_layers(self):
         #all maps are the same size
         tile_map_size = self.tile_map[0]
 
-        if self.current_z >= 2:
+        if self.current_z >= constants.SURFACE_LEVEL:
             layers_to_draw = [self.current_z]
             current_layer = self.tile_map[self.current_z]
         else:
             layers_to_draw = []
             #Start at surface, stop just past the current z, step back by 1
-            for depth in range(2, self.current_z -1, -1):
+            for depth in range(constants.SURFACE_LEVEL, self.current_z -1, -1):
                 layers_to_draw.append(depth)
-
-        #Offset the screen to center the tile map
-        total_rows = len(tile_map_size)
-        total_cols = len(tile_map_size[0])
-        map_pixel_width = total_cols * TILE_SIZE
-        map_pixel_height = total_rows * TILE_SIZE
-        x_offset = (WINDOW_WIDTH - map_pixel_width) / 2
-        y_offset = (WINDOW_HEIGHT - map_pixel_height) / 2
+       
         #Draw the tile map we created in setup
         for depth in layers_to_draw:
             current_layer = self.tile_map[depth]
             for row_index in range(len(tile_map_size)): #use any tile_map, they're all the same size
                 for col_index in range(len(tile_map_size[row_index])):
                     tile_name = current_layer[row_index][col_index] #gets the string at position in the map
-                    tile_color = TILE_COLORS[tile_name] #assigns it a color based on name (tile_type)
+                    tile_color = constants.TILE_COLORS[tile_name] #assigns it a color based on name (tile_type)
                     #The center of each tile, increase by tile size with increasing index
                     #   and start at half the tile size
-                    center_x = (col_index * TILE_SIZE) + (TILE_SIZE/2) + x_offset
-                    center_y = (row_index * TILE_SIZE) + (TILE_SIZE/2) + y_offset
+                    center_x = (col_index * constants.TILE_SIZE) + (constants.TILE_SIZE/2) + self.x_offset
+                    center_y = (row_index * constants.TILE_SIZE) + (constants.TILE_SIZE/2) + self.y_offset
                     #Make and draw the rectanges 
-                    tile_rect = arcade.XYWH(center_x, center_y, TILE_SIZE, TILE_SIZE)
-                    arcade.draw_rect_filled(tile_rect, tile_color)
+                    tile_rect = arcade.XYWH(center_x, center_y, constants.TILE_SIZE, constants.TILE_SIZE)
+                    arcade.draw_rect_filled(tile_rect, tile_color)    
 
-    #Allows traversal of z layers
+    # Handles player input
     def on_key_press(self, key, modifiers):
         if key == arcade.key.UP:
-            if self.current_z > 0:
+            if self.current_z > 0: #Min
                 self.current_z -= 1
         if key == arcade.key.DOWN:
-            if self.current_z < 4:
+            if self.current_z < constants.Z_LEVELS-1: #Max-1
                 self.current_z += 1
 def main():
     """Main function"""
