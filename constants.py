@@ -1,5 +1,5 @@
-
-import arcade #Game library #type: ignore (removes yellow line. trust)
+# Contains most of the game settings and other immutable characteristics
+import arcade #Game library
 
 #Window Settings
 WINDOW_WIDTH = 1280
@@ -19,5 +19,5 @@ TILE_COLORS = {
     "iron_ore": arcade.color.BATTLESHIP_GREY,
     "water": arcade.color.SEA_BLUE,
     "stone": arcade.color.ASH_GREY,
-    "sky": [135, 206, 250, 125] #Sky blue, opacity 125 = 50%, 0 = invisible, 250 = 100%
+    "sky": [135, 206, 250, 15] #Sky blue, opacity 125 = 50%, 0 = invisible, 250 = 100%
     }

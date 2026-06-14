@@ -1,11 +1,11 @@
-#Setup the game here
-import arcade #game library.  #type: ignore (removes false 'not-used' flag)
+# Setup the game here
+import arcade # Game library.
 import random
-import constants #All of our game settings
+import constants # All of our game settings
 
-#Responsible for creating the game window, creating and drawing the map.  
+# Responsible for creating the game window, creating and drawing the map.  
 class GameView(arcade.Window):
-    #Setup
+    # Setup
     def __init__(self):
 
         # Call the parent class to set up the window
@@ -14,6 +14,8 @@ class GameView(arcade.Window):
         
         # Track our current z level.
         self.current_z = constants.SURFACE_LEVEL
+        # Toggle isometric vs. top down map view
+        self.is_isometric = True
 
     """High level summary of what happens on game start"""
     def setup(self):
@@ -51,18 +53,31 @@ class GameView(arcade.Window):
         return new_map
     
     # Offset the screen to center the in game map
+    # Reference: https://clintbellanger.net/articles/isometric_math/
+    #   work is finished in calculate_pixel_coordinates()
     def calculate_screen_offsets(self):
         total_rows = len(self.tile_map[0])
-        total_cols = len(self.tile_map[0])
-        map_pixel_width = total_cols * constants.TILE_SIZE
-        map_pixel_height = total_rows * constants.TILE_SIZE
-        self.x_offset = (constants.WINDOW_WIDTH - map_pixel_width) / 2
-        self.y_offset = (constants.WINDOW_HEIGHT - map_pixel_height) / 2
+        total_cols = len(self.tile_map[0][0])
+        if self.is_isometric:
+            # in the provided example, y is half of x.  But we need the tiles to be squares for top down
+            # so we squash our y 2 times more than x.  
+            map_pixel_width = (total_rows + total_cols) * (constants.TILE_SIZE / 2)
+            map_pixel_height = (total_rows + total_cols) * (constants.TILE_SIZE / 4)
+
+            self.x_offset = (constants.WINDOW_WIDTH - constants.TILE_SIZE) / 2 # Finds the center of the screen for the topmost tile (0,0)
+            self.y_offset = (constants.WINDOW_HEIGHT - map_pixel_height) / 2 # Finds the empty space around the map
+        else:
+            map_pixel_width = total_cols * constants.TILE_SIZE
+            map_pixel_height = total_rows * constants.TILE_SIZE
+        
+            self.x_offset = (constants.WINDOW_WIDTH - map_pixel_width) / 2 # Finds space not occupied by map
+            self.y_offset = (constants.WINDOW_HEIGHT - map_pixel_height) / 2 # Finds the empty space around the map
 
     """High level summary of what is drawn to the screen each frame"""
     def on_draw(self):
         self.clear()
         self.draw_visible_layers()
+
 
     # Handles depth and painting the map to screen
     def draw_visible_layers(self):
@@ -85,22 +100,59 @@ class GameView(arcade.Window):
                 for col_index in range(len(tile_map_size[row_index])):
                     tile_name = current_layer[row_index][col_index] #gets the string at position in the map
                     tile_color = constants.TILE_COLORS[tile_name] #assigns it a color based on name (tile_type)
-                    #The center of each tile, increase by tile size with increasing index
-                    #   and start at half the tile size
-                    center_x = (col_index * constants.TILE_SIZE) + (constants.TILE_SIZE/2) + self.x_offset
-                    center_y = (row_index * constants.TILE_SIZE) + (constants.TILE_SIZE/2) + self.y_offset
-                    #Make and draw the rectanges 
-                    tile_rect = arcade.XYWH(center_x, center_y, constants.TILE_SIZE, constants.TILE_SIZE)
-                    arcade.draw_rect_filled(tile_rect, tile_color)    
+                    
+                    # Calculates tile offsets
+                    bottom_x, bottom_y = self.calculate_pixel_coordinates(row_index, col_index, depth)
+                    
+                    # If isometric, draw a diamond.  If top-down, draw a square.
+                    if self.is_isometric:
+                        tile_width = constants.TILE_SIZE
+                        tile_height = constants.TILE_SIZE / 2 #isometric math
+
+                        # Find 4 points of the diamond (clockwise)
+                        point_list = (
+                            (bottom_x + tile_width / 2, bottom_y + tile_height), #Top
+                            (bottom_x + tile_width, bottom_y + tile_height / 2), #Right
+                            (bottom_x + tile_width / 2, bottom_y),               #Bottom
+                            (bottom_x, bottom_y + tile_height / 2)               #Left
+                        )
+                        arcade.draw_polygon_filled(point_list, tile_color)
+                    else:
+                        tile_rect = arcade.XYWH(bottom_x, bottom_y, constants.TILE_SIZE, constants.TILE_SIZE)
+                        arcade.draw_rect_filled(tile_rect, tile_color)    
+
+    #Differs between isometric and top-down views
+    def calculate_pixel_coordinates(self, row_index, col_index, depth):
+        # Reference: https://clintbellanger.net/articles/isometric_math/
+        if self.is_isometric:
+            cart_x =  col_index * (constants.TILE_SIZE / 2)
+            cart_y = row_index * (constants.TILE_SIZE / 2)
+
+            z_shift = (constants.SURFACE_LEVEL - depth) * (constants.TILE_SIZE / 2) #Inverts y so sky is above surface
+
+            final_x = cart_x - cart_y + self.x_offset
+            final_y = (cart_x + cart_y) / 2 + self.y_offset + z_shift
+
+        else:
+            final_x = (col_index * constants.TILE_SIZE) + self.x_offset
+            final_y = (row_index * constants.TILE_SIZE) + self.y_offset
+        return final_x, final_y
 
     # Handles player input
     def on_key_press(self, key, modifiers):
+        # Move z layers (underground <-> surface <-> sky)
         if key == arcade.key.UP:
             if self.current_z > 0: #Min
                 self.current_z -= 1
         if key == arcade.key.DOWN:
             if self.current_z < constants.Z_LEVELS-1: #Max-1
                 self.current_z += 1
+
+        # Toggle isometric vs. top down views
+        if key == arcade.key.B:
+            self.is_isometric = not self.is_isometric
+            self.calculate_screen_offsets()
+
 def main():
     """Main function"""
     window = GameView()
